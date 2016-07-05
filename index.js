@@ -6,9 +6,20 @@ var http = require('http');
 var socketIO = require('socket.io');
 
 var fileServer = new(nodeStatic.Server)();
-var app = http.createServer(function(req, res) {
-  fileServer.serve(req, res);
-}).listen(8080);
+// var app = http.createServer(function(req, res) {
+//   fileServer.serve(req, res);
+// }).listen(8080);
+var app = http.createServer(serverCallback);
+
+function serverCallback(request, response) {
+    request.addListener('end', function () {
+        response.setHeader('Access-Control-Allow-Origin', '*');
+        response.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+        response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        file.serve(request, response);
+    }).resume();
+}
 
 var io = socketIO.listen(app);
 io.sockets.on('connection', function(socket) {
@@ -60,3 +71,5 @@ io.sockets.on('connection', function(socket) {
   });
 
 });
+
+app.listen(8080);
