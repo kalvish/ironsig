@@ -1,15 +1,11 @@
-'use strict';
+var fs = require('fs');
 
-var os = require('os');
-var nodeStatic = require('node-static');
-var http = require('http');
-var socketIO = require('socket.io');
+var _static = require('node-static');
+var file = new _static.Server('./static', {
+    cache: false
+});
 
-var fileServer = new(nodeStatic.Server)();
-// var app = http.createServer(function(req, res) {
-//   fileServer.serve(req, res);
-// }).listen(8080);
-var app = http.createServer(serverCallback);
+var app = require('http').createServer(serverCallback);
 
 function serverCallback(request, response) {
     request.addListener('end', function () {
@@ -21,35 +17,71 @@ function serverCallback(request, response) {
     }).resume();
 }
 
-var io = socketIO.listen(app);
-io.sockets.on('connection', function(socket) {
+var io = require('socket.io').listen(app, {
+    log: true,
+    origins: '*:*'
+});
 
-  // convenience function to log server messages on the client
+io.set('transports', [
+    // 'websocket',
+    'xhr-polling',
+    'jsonp-polling'
+]);
+
+var channels = {};
+
+io.sockets.on('connection', function (socket) {
+    var initiatorChannel = '';
+    if (!io.isConnected) {
+        io.isConnected = true;
+    }
+
+    socket.on('new-channel', function (data) {
+        if (!channels[data.channel]) {
+            initiatorChannel = data.channel;
+        }
+
+        channels[data.channel] = data.channel;
+        onNewNamespace(data.channel, data.sender);
+    });
+
+    socket.on('presence', function (channel) {
+        var isChannelPresent = !! channels[channel];
+        socket.emit('presence', isChannelPresent);
+    });
+
+    socket.on('disconnect', function (channel) {
+        if (initiatorChannel) {
+            delete channels[initiatorChannel];
+        }
+    });
+
+     socket.on('message', function(message) {
+    log('Client said: ', message);
+    // for a real app, would be room-only (not broadcast)
+    socket.broadcast.emit('message', message);
+  });
+
+ // convenience function to log server messages on the client
   function log() {
     var array = ['Message from server:'];
     array.push.apply(array, arguments);
     socket.emit('log', array);
   }
 
-  socket.on('message', function(message) {
-    log('Client said: ', message);
-    // for a real app, would be room-only (not broadcast)
-    socket.broadcast.emit('message', message);
-  });
-
   socket.on('create or join', function(room) {
-    log('Received request to create or join room ' + room);
+    console.log('Received request to create or join room ' + room);
 
     var numClients = io.sockets.sockets.length;
-    log('Room ' + room + ' now has ' + numClients + ' client(s)');
+    console.log('Room ' + room + ' now has ' + numClients + ' client(s)');
 
     if (numClients === 1) {
       socket.join(room);
-      log('Client ID ' + socket.id + ' created room ' + room);
+      console.log('Client ID ' + socket.id + ' created room ' + room);
       socket.emit('created', room, socket.id);
 
     } else if (numClients === 2) {
-      log('Client ID ' + socket.id + ' joined room ' + room);
+      console.log('Client ID ' + socket.id + ' joined room ' + room);
       io.sockets.in(room).emit('join', room);
       socket.join(room);
       socket.emit('joined', room, socket.id);
@@ -69,7 +101,31 @@ io.sockets.on('connection', function(socket) {
       });
     }
   });
-
 });
+
+function onNewNamespace(channel, sender) {
+    io.of('/' + channel).on('connection', function (socket) {
+        var username;
+        if (io.isConnected) {
+            io.isConnected = false;
+            socket.emit('connect', true);
+        }
+
+        socket.on('message', function (data) {
+            if (data.sender == sender) {
+                if(!username) username = data.data.sender;
+                
+                socket.broadcast.emit('message', data.data);
+            }
+        });
+        
+        socket.on('disconnect', function() {
+            if(username) {
+                socket.broadcast.emit('user-left', username);
+                username = null;
+            }
+        });
+    });
+}
 
 app.listen(8080);
