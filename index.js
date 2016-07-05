@@ -36,7 +36,10 @@ io.sockets.on('connection', function (socket) {
         io.isConnected = true;
     }
 
+console.log('Client said: ', 'test');
+
     socket.on('new-channel', function (data) {
+        console.log('Client said: ', 'test');
         if (!channels[data.channel]) {
             initiatorChannel = data.channel;
         }
@@ -57,7 +60,7 @@ io.sockets.on('connection', function (socket) {
     });
 
      socket.on('message', function(message) {
-    log('Client said: ', message);
+    console.log('Client said: ', message);
     // for a real app, would be room-only (not broadcast)
     socket.broadcast.emit('message', message);
   });
