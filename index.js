@@ -22,13 +22,13 @@ var io = require('socket.io').listen(app, {
     origins: '*:*'
 });
 
-io.set('transports', [
+/*io.set('transports', [
     // 'websocket',
     //'xhr-polling',
     //'jsonp-polling'
     'websocket',
     'polling'
-]);
+]);*/
 
 var channels = {};
 
